@@ -3,5 +3,14 @@ cmake_minimum_required(VERSION 2.8.5 FATAL_ERROR)
 PROJECT('MedicayunLink')
 
 set(MCL_ROOT_DIR "./" CACHE PATH "" FORCE)
+INCLUDE_DIRECTORIES({PROJECT_SOURCE_DIR}/include)\
 
-SUBDIRS(src)
+SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/bin)
+
+add_subdirectory(src)
+
+
+
+
+
+
