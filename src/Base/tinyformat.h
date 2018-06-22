@@ -267,7 +267,174 @@ inline  void formatValue(std::ostream &out,const char * /*fmtBegin*/,    \
 #define TINYFORMAT_PASSARGS_15 v1,v2,v3,v4,v5,v6,v7,v8,v9,v10,v11,v12,v13,v14,v15
 #define TINYFORMAT_PASSARGS_16 v1,v2,v3,v4,v5,v6,v7,v8,v9,v10,v11,v12,v13,v14,v15,v16
 
+#define TINYFORMAT_PASSARGS_TAIL_1
+#define TINYFORMAT_PASSARGS_TAIL_2,v2
+#define TINYFORMAT_PASSARGS_TAIL_3,v2,v3
+#define TINYFORMAT_PASSARGS_TAIL_4,v2,v3,v4
+#define TINYFORMAT_PASSARGS_TAIL_5,v2,v3,v4,v5
+#define TINYFORMAT_PASSARGS_TAIL_6,v2,v3,v4,v5,v6
+#define TINYFORMAT_PASSARGS_TAIL_7,v2,v3,v4,v5,v6,v7
+#define TINYFORMAT_PASSARGS_TAIL_8,v2,v3,v4,v5,v6,v7,v8
+#define TINYFORMAT_PASSARGS_TAIL_9,v2,v3,v4,v5,v6,v7,v8,v9
+#define TINYFORMAT_PASSARGS_TAIL_10,v2,v3,v4,v5,v6,v7,v8,v9,v10
+#define TINYFORMAT_PASSARGS_TAIL_11,v2,v3,v4,v5,v6,v7,v8,v9,v10,v11
+#define TINYFORMAT_PASSARGS_TAIL_12,v2,v3,v4,v5,v6,v7,v8,v9,v10,v11,v12
+#define TINYFORMAT_PASSARGS_TAIL_13,v2,v3,v4,v5,v6,v7,v8,v9,v10,v11,v12,v13
+#define TINYFORMAT_PASSARGS_TAIL_14,v2,v3,v4,v5,v6,v7,v8,v9,v10,v11,v12,v13,v14
+#define TINYFORMAT_PASSARGS_TAIL_15,v2,v3,v4,v5,v6,v7,v8,v9,v10,v11,v12,v13,v14,v15
+#define TINYFORMAT_PASSARGS_TAIL_16,v2,v3,v4,v5,v6,v7,v8,v9,v10,v11,v12,v13,v14,v15,v16
+    
+#define TINYFORMAT_FOREACH_ARGNUM(m) \
+    m(1),m(2),m(3),m(4),m(5),m(6),m(7),m(8),m(9),m(10),m(11),m(12),m(13),m(14),m(15),m(16)
 
+namespace detail{
+        class FormatArg
+        {
+        public:
+            FormatArg(){}
+            
+            template<typename T>
+            explicit FormatArg(const T& value)
+                :m_value(static_cast<const void *>(&value)),
+                 m_formatImpl(&m_formatImpl<T>),
+                 m_toIntImpl(&toIntImpl<T>)
+                 {}
+            void format(std::ostream &out,const char *fmtBegin,const char *fmtEnd,int ntrunc)const
+            {
+                m_formatImpl(out,fmtBegin,fmtEnd,ntrunc,m_value);
+            }
+            int toInt()const
+            {
+                return m_toIntImpl(m_value);
+            }
+        private:
+            template<typename T>
+            TINYFORMAT_HIDDEN static void formatImpl(std::ostream &out,const char *fmtBegin,
+                                                    const char *fmtEnd,int ntrunc,const void *value)
+            {
+                formatValue(out,fmtBegin,fmtEnd,ntrunc,*static_cast<const T*>(value));
+            }
+            template<typename T>
+            TINYFORMAT_HIDDEN static int toIntImpl(const void *value)
+            {
+                return convertToInt<T>::invoke(*static_cast<const T*>(value));
+            }
+            
+            const void *m_value;
+            void (*m_formatImpl)(std::ostream& out,const char *fmtBegin,const char *fmtEnd,int ntrunc,const void *value);
+            int (*m_toIntImpl)(const void *value);
+        };
+        inline int parseIntAndAdvance(const char *& c)
+        {
+            int i = 0;
+            for(;*c >='0' && *c<='9';++c)
+                i = 10 * i + (*c - '0')
+            return i;
+        }
+        inline const char *printFormatStringLiteral(std::ostream & out,const char *fmt)
+        {
+            const char *c = fmt;
+            for(;;++c)
+            {
+                switch(*c)
+                {
+                    case '\0':
+                        out.write(fmt,c - fmt);
+                        return c;
+                    case '%':
+                        out.write(fmt,c - fmt);
+                        if(*(c+1)!='%')
+                            return c;
+                        
+                        fmt = ++c;
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+        inline const char *streamStateFromFormat(std::ostream& out,bool &spacePadPositive,
+                                                 int &ntrunc,const char *fmtStart,
+                                                 const detail::FormatArg* formatters,
+                                                 int & argIndex,int numFormatters)
+        {
+            if(*fmtStart != '%')
+            {
+                TINYFORMAT_ERROR("tinyformat:Not enough conversion specifiers in format string");
+                return fmtStart;
+            }
+            
+            out.width(0);
+            out.precision(6);
+            out.fill('');
+            
+            out.unsetf(std::ios::adjustfield | std::ios::basefield| std::ios::floatfield | std::ios::showbase | std::ios::boolalpha | std::ios::showpoint | std::ios::showpos | std::ios::uppercase);
+            bool precisionSet = false;
+            bool widthSet = false;
+            int widthExtra = 0;
+            const char *c = fmtStart + 1;
+            
+            for(;; ++c)
+            {
+                switch(*c)
+                {
+                    case '#':
+                        out.setf(std::ios::showpoint | std::ios::showbase);
+                        continue;
+                    case '0':
+                        if(!(out.flags() & std::ios::left))
+                        {
+                            out.fill('0');
+                            out.setf(std::ios::internal,std::ios::adjustfield);
+                        }
+                        continue;
+                    case '-':
+                        out.fill(' ');
+                        out.setf(std::ios::left,std::ios::adjustfield);
+                        continue;
+                    case ' ':
+                        if(!(out.flags() & std::ios::showpos))
+                            spacePadPositive = true;
+                        continue;
+                    case '+':
+                        out.setf(std::ios::showpos);
+                        spacePadPositive = false;
+                        widthExtra = 1;
+                        continue;
+                    default:
+                        break;
+                }
+                break;
+            }
+            if(*c >= '0' && *c <= '9')
+            {
+                widthSet = true;
+                out.width(parseIntAndAdvance(c));
+            }
+            if(*c == '*')
+            {
+                widthSet = true;
+                int width = 0;
+                if(argIndex  < numFormatters)
+                    width = formatters[argIndex++].toInt();
+                else
+                    TINYFORMAT_ERROR("tinyformat:Not enough arguments to read variable width");
+                
+                if(width < 0)
+                {
+                    out.fill(' ');
+                    out.setf(std::ios::left,std::ios::adjustfield);
+                    width = -width;
+                }
+            }
+            
+        }
+        
+}    
+    
+    
+    
+    
 
     
 }
