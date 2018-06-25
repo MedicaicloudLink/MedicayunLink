@@ -569,19 +569,165 @@ class FormatList
 {
     public:
         FormatList(detail::FormatArg * formatters,int N)
-}    
+            :m_formatters(formatters),m_N(N){}
+        
+        friend void vformat(std::ostream &out,const char *fmt,
+                            const FormatList& list);
+    private:
+        const detail::FormatArg * m_format;
+        int m_N;
+};
+typedef const FormatList &FormatListRef;
 
+namespace detail{
+    template<int N>
+    class FormatListN : public FormatList
+    {
+        public:
+#ifdef  TINYFORMAT_USE_VARIADIC_TEMPLATES
+            template<typename... Args>
+            explicit FormatListN(const Args&... args)
+                :FormatList(&m_formatterStore[0],N),
+                m_formatterStore{FormatArg(args)...}
+#else
+        void init(int){}
+#       define TINYFORMAT_MAKE_FORMATLIST_CONSTRUCTOR(n)                    \
+                                                                            \
+        template<TINYFORMAT_MAKE_FORMATLIST_CONSTRUCTOR(n)                  \
+        explicit    FormatListN(TINYFORMAT_VARARGS(n))                      \
+                    :FormatList(&m_formatterStore[0],n)                     \
+        {  assert(n == N); init(0,TINYFORMAT_PASSARGS(n)); }                \
+                                                                            \
+        template<TINYFORMAT_ARGTYPES(n)>                                    \
+        void init(int i,TINYFORMAT_VARARGS(n))                              \
+        {                                                                   \
+            m_formatterStore[i] = FormatArg(v1)                             \
+            init(i + 1 TINYFORMAT_PASSARGS_TAIL(n));                        \
+        }
+        
+        TINYFORMAT_FOREACH_ARGNUM(TINYFORMAT_MAKE_FORMATLIST_CONSTRUCTOR)
+#       undef   TINYFORMAT_MAKE_FORMATLIST_CONSTRUCTOR
+#endif
+    private:
+        FormatArg m_formatterStore[N];
+    };
     
-    
+    template<> class FormatListN<0> : public FormatList
+    {
+        public : FormatListN() : FormatList(0,0){}  
+    };
+}
+#ifdef TINYFORMAT_USE_VARIADIC_TEMPLATES
 
-    
+template<typename... Args>
+detail::FormatListN<sizeof...(Args)>makeFormatList(const Args&... args)
+{
+    return detail::FormatListN<sizeof...(args)>(args...);
+}
+#else
+
+inline detail::FormatListN<0>makeFormatList()
+{
+    return detail::Format<0>();
+}
+#define TINYFORMAT_MAKE_MAKEFORMATLIST(n)                           \
+template<TINYFORMAT_ARGTYPES>                                       \
+detail::FormatListN<n>makeFormatList(TINYFORMAT_VARARGS(n))         \
+{                                                                   \
+    return detail::FormatListN<n>(TINYFORMAT_PASSARGS(n));          \
+}
+TINYFORMAT_FOREACH_ARGNUM(TINYFORMAT_MAKE_MAKEFORMATLIST)
+#undef TINYFORMAT_MAKE_MAKEFORMATLIST
+#endif
+
+inline void vformat(std::ostream& out,const char *fmt,FormatListRef list)
+{
+    detail::formatImpl(out,fmt,list.m_formatters,list.m_N);
 }
 
-/**
- * @todo write docs
- */
-class tinyformat
+#ifdef TINYFORMAT_USE_VARIADIC_TEMPLATES
+template<typename...Args>
+void format(std::ostream& out,const char *fmt,const Args&... args)
 {
-};
+    vformat(out,fmt,makeFormatList(args...));
+}
+template<typename... Args>
+std::string format(const char * fmt,const Args&... args)
+{
+    std::ostringstream oss;
+    format(oss,fmt,args...);
+    return oss.str();
+}
+template<typename... Args>
+void printf(const char *fmt,const Args&... args)
+{
+    format(std::cout,fmt,args...);
+}
+template<typename... Args>
+void println(const char * fmt,const Args&... args)
+{
+    format(std::cout,fmt,args...);
+    std::cout<<'\n';
+}
+#else
+inline void format(std::ostream& out,const char *fmt)
+{
+    vformat(out,fmt,makeFormatList());
+}
+inline std::string format(const char *fmt)
+{
+    std::ostringstream oss;
+    format(oss,fmt);
+    return oss.str();
+}
+inline void printf(const char * fmt)
+{
+    format(std::cout,fmt);
+}
+inline void printfln(const char *fmt)
+{
+    format(std::cout,fmt);
+    std::cout<<'\n';
+}
+#define TINYFORMAT_MAKE_FORMAT_FUNCS(n)                                     \
+template<TINYFORMAT_ARGTYPES(n)>                                            \
+void format(std::ostream& out,const char *fmt,TINYFORMAT_VARARGS(n))        \
+{                                                                           \
+    vformat(out,fmt,makeFormatList(TINYFORMAT_PASSARGS(n)));                \
+}                                                                           \
+                                                                            \
+template<TINYFORMAT_ARGTYPES(n)>                                            \
+std::string format(const char *fmt,TINYFORMAT_VARARGS(n))                   \
+{                                                                           \
+    std::ostringstream oss;                                                 \
+    format(oss,fmt,TINYFORMAT_PASSARGS(n));                                 \
+    return oss.str();                                                       \
+}                                                                           \
+template<TINYFORMAT_ARGTYPES(n)>                                            \
+void printf(const char *fmt,TINYFORMAT_VARARGS(n))                          \
+{                                                                           \
+        format(std::cout,fmt,TINYFORMAT_PASSARGS(n));                       \
+}                                                                           \
+template<TINYFORMAT_ARGTYPES(n)>                                            \
+void printfln(const char * fmt,TINYFORMAT_VARARGS(n))                       \
+{                                                                           \
+    format(std::cout,fmt,TINYFORMAT_PASSARGS(n));                           \
+    std::cout<<'\n';                                                        \
+}
+TINYFORMAT_FOREACH_ARGNUM(TINYFORMAT_MAKE_FORMAT_FUNCS)
+#undef TINYFORMAT_MAKE_FORMAT_FUNCS
 
+#endif
+
+template<typename... Args>
+std::string format(const std::string &fmt,const Args&... args)
+{
+    std::ostringstream oss;
+    format(oss,fmt.c_str(),args...);
+    return oss.str();
+}
+
+}
+
+#define strprint tfm::format
 #endif // TINYFORMAT_H
