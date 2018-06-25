@@ -203,7 +203,7 @@ inline  void formatValue(std::ostream &out,const char * /*fmtBegin*/,    \
                 out<<static_cast<int>(value);break;                      \
             default:                                                     \
                 out<<value;             break;                           \
-        }
+        }                                                               \
     }
     TINYFORMAT_DEFINE_FORMATVALUE_CHAR(char)
     TINYFORMAT_DEFINE_FORMATVALUE_CHAR(signed char)
@@ -426,13 +426,151 @@ namespace detail{
                     out.setf(std::ios::left,std::ios::adjustfield);
                     width = -width;
                 }
+                out.width(width);
+                ++c;
             }
+            if(*c =='.')
+            {
+                ++c;
+                int precision = 0;
+                if(*c == '*')
+                {
+                    ++c;
+                    if(argIndex < numFormatters)
+                        precision = formatters[argIndex++].toInt();
+                    else
+                        TINYFORMAT_ERROR("tinyformat:Not enough arguments to read variable precision");
+                }
+                else
+                {
+                    if(*c >= '0' && *c <='9')
+                        precision = parseIntAndAdvance(c);
+                    else if(*c == '-')
+                        parseIntAndAdvance(++c);
+                }
+                out.precision(precision);
+                precisionSet = true;
+            }
+            while(*c == 'l' || *c == 'h' || *c =='L' ||
+                *c == 'j'|| *c == 'z' || *c == 't')
+                ++c;
             
+            bool intConversion = true;
+            switch(*c){
+                case 'u':case 'd':case 'i':
+                    out.setf(std::ios::dec,std::ios::basefield);
+                    intConversion = true;
+                    break;
+                case 'o':
+                    out.setf(std::ios::oct,std::ios::basefield);
+                    intConversion = true;
+                case 'X':
+                    out.setf(std::ios::uppercase);
+                case 'x':case 'p':
+                    out.seft(std::ios::hex,std::ios::basefield);
+                    intConversion = true;
+                    break;
+                case 'E':
+                    out.setf(std::ios::uppercase);
+                case 'e':
+                    out.seft(std::ios::scientific,std::ios::floatfield);
+                    out.seft(std::ios::dec,std::ios::basefield);
+                    break;
+                case 'F':
+                    out.setf(std::ios::uppercase);
+                case 'f':
+                    out.setf(std::ios::fixed,std::ios::floatfield);
+                    break;
+                case 'G':
+                    out.setf(std::ios::uppercase);
+                case 'g':
+                    out.setf(std::ios::dec,std::ios::basefield);
+                    out.flags(out.flags() & std::ios::floatfield);
+                    break;
+                case 'a':case 'A':
+                    TINYFORMAT_ERROR("tinyformat: the %a and %A conversion specs "
+                                    "are not supported ");
+                    break;
+                case 'c':
+                    break;
+                case 's':
+                    if(precisionSet)
+                        ntrunc = static_cast<int>(out.precision());
+                    out.setf(std::ios::boolalpha);
+                    break;
+                case 'n':
+                    TINYFORMAT_ERROR("tinyformat: %n conversion spec not supported");
+                    break;
+                case '\0':
+                    TINYFORMAT_ERROR("tinyformat: Conversion spec incorrectly"
+                                     "terminated by end of string");
+                    return c;
+                default:
+                    break;
+            }
+            if(intConversion && precisionSet && !widthSet)
+            {
+                out.width(out.precision() + widthExtra);
+                out.setf(std::ios::internal,std::ios::adjustfield);
+                out.fill('0');
+            }
+            return c+1;
+        }
+        
+        inline void formatImpl(std::ostream & out,const char *fmt,
+                               const detail::FormatArg* formatters,
+                               int numFormatters)
+        {
+            std::streamsize origWidth = out.width();
+            std::streamsize origPrecision = out.precision();
+            std::ios::fmtflags origFlags = out.flags();
+            char origFill = out.fill();
+            
+            for(int argIndex = 0; argIndex < numFormatters; ++argIndex)
+            {
+                fmt = printFormatStringLiteral(out,fmt);
+                bool spacePadPositive = false;
+                int ntrunc = -1;
+                const char *fmtEnd = streamStateFromFormat(out,spacePadPositive,ntrunc,fmt,formatters,argIndex,numFormatters);
+                
+                if(argIndex >= numFormatters)
+                {
+                    TINYFORMAT_ERROR("tinyformat: Not enough format arguments");
+                    return ;
+                }
+                const FormatArg& arg = formatters[argIndex];
+                if(!spacePadPositive)
+                    arg.format(out,fmt,fmtEnd,ntrunc);
+                else
+                {
+                    std::ostringstream tmpStream;
+                    tmpStream.copyfmt(out);
+                    tmpStream.setf(std::ios::showpos);
+                    arg.format(tmpStream,fmt,fmtEnd,ntrunc);
+                    std::string result = tmpStream.str();
+                    for(size_t i = 0,iend = result.size();i < iend;i++)
+                        if(result[i] == '+') result[i] = ' ';
+                    out<< result;
+                }
+                fmt = fmtEnd;
+            }
+            fmt = printFormatStringLiteral(out,fmt);
+            if(*fmt != '\0')
+                TINYFORMAT_ERROR("tinyformat: Too many conversion specifiers in format string");
+        
+            out.width(origWidth);
+            out.precision(origPrecision);
+            out.flags(origFlags);
+            out.fill(origFill);
         }
         
 }    
-    
-    
+class FormatList
+{
+    public:
+        FormatList(detail::FormatArg * formatters,int N)
+}    
+
     
     
 
