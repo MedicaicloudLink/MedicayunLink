@@ -24,5 +24,6 @@
  */
 
 #include "utilstrencodings.h"
+#include "tinyformat.h"
 
 using namespace utilstrencodings;
