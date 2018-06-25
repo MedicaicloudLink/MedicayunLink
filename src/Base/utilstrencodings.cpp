@@ -22,7 +22,7 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-#include "uint256.h"
 
+#include "utilstrencodings.h"
 
-
+using namespace utilstrencodings;
