@@ -730,4 +730,5 @@ std::string format(const std::string &fmt,const Args&... args)
 }
 
 #define strprint tfm::format
+
 #endif // TINYFORMAT_H
