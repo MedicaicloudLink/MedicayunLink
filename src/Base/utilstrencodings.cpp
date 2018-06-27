@@ -421,6 +421,107 @@ static inline bool ProcessMantissaDigit(char ch,int64_t &mantissa,int &mantissa_
     
     return true;
 }
+bool ParseFixedPoint(const std::string& val, int decimals, int64_t* acmount_out)
+{
+    int64_t mantissa = 0;
+    int64_t exponent = 0;
+    int mantissa_tzeros = 0;
+    bool mantissa_sign = false;
+    bool exponent_sign = false;
+    int ptr = 0;
+    int end = val.size();
+    int point_ofs = 0;
+    
+    if(ptr < end && val[ptr] == '-'){
+        mantissa_sign = true;
+        ++ptr;
+    }
+    if(ptr < end)
+    {
+        if(val[ptr] == '0'){
+            ++ptr;
+        }
+        else if(val[ptr] >= '1' && val[ptr] <= '9')
+        {
+            while(ptr < end && val[ptr] >= '0' && val[ptr] <= '9')
+                if(!ProcessMantissaDigit(val[ptr],mantissa,mantissa_tzeros))
+                    return false;
+                ++ptr;
+        }
+        else 
+            return false;
+    }
+    else return false;
+    
+    if(ptr < end && val[ptr] == '.')
+    {
+        ++ptr;
+        if(ptr < end && val[ptr] >= '0' && val[ptr] <= '9')
+        {
+            while(ptr < end && val[ptr] >= '0' && val[ptr] <= '9')
+            {
+                    if(!ProcessMantissaDigit(val[ptr],mantissa,mantissa_tzeros))
+                        return false;
+                    ++ptr;
+                    ++point_ofs;
+            }
+        }
+        else
+            return false;
+    }
+    if(ptr < end && (val[ptr] == 'e' || val[ptr] == 'E'))
+    {
+        ++ptr;
+        if(ptr < end && val[ptr] == '+')
+            ++ptr;
+        else if(ptr < end && val[ptr] == '-'){
+            exponent_sign = true;
+            ++ptr;
+        }
+        if(ptr < end && val[ptr] >= '0' && val[ptr] <= '9')
+        {
+            while(ptr < end && val[ptr] >='0' && val[ptr] <= '9')
+            {
+                if(exponent > (UPPER_BOUND / 10LL))
+                    return false;
+                
+                exponent = exponent * 10 + val[ptr] - '0';
+                ++ptr;
+            }
+        }else return false;
+    }
+    if(ptr != end)
+        return false;
+    
+    if(exponent_sign)
+        exponent = -exponent;
+    exponent = exponent - point_ofs + mantissa_tzeros;
+    
+    if(mantissa_sign)
+        mantissa =-mantissa;
+    
+    exponent += decimals;
+    
+    if(exponent < 0)
+        return false;
+    if(exponent >= 18)
+        return false;
+    
+    for(int i = 0; i < exponent; ++i)
+    {
+        if(mantissa >(UPPER_BOUND / 10LL) || mantissa <- (UPPER_BOUND / 10LL))
+            return false;
+        mantissa *= 10;
+    }
+    if(mantissa > UPPER_BOUND || mantissa <-UPPER_BOUND)
+        return false;
+    
+    if(amount_out)
+        *amount_out = mantissa;
+    
+    return true;
+    
+}
 
 
 
